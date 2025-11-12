@@ -20,16 +20,16 @@ import requests
 import yaml
 
 
-VERSION = "3.0.4"
+VERSION = "3.0.5"
 
 
 # === SMTP邮件配置 ===
 SMTP_CONFIGS = {
-    # Gmail
+    # Gmail（使用 STARTTLS）
     "gmail.com": {"server": "smtp.gmail.com", "port": 587, "encryption": "TLS"},
-    # QQ邮箱
-    "qq.com": {"server": "smtp.qq.com", "port": 587, "encryption": "TLS"},
-    # Outlook
+    # QQ邮箱（使用 SSL，更稳定）
+    "qq.com": {"server": "smtp.qq.com", "port": 465, "encryption": "SSL"},
+    # Outlook（使用 STARTTLS）
     "outlook.com": {
         "server": "smtp-mail.outlook.com",
         "port": 587,
@@ -41,13 +41,13 @@ SMTP_CONFIGS = {
         "encryption": "TLS",
     },
     "live.com": {"server": "smtp-mail.outlook.com", "port": 587, "encryption": "TLS"},
-    # 网易邮箱
-    "163.com": {"server": "smtp.163.com", "port": 587, "encryption": "TLS"},
-    "126.com": {"server": "smtp.126.com", "port": 587, "encryption": "TLS"},
-    # 新浪邮箱
-    "sina.com": {"server": "smtp.sina.com", "port": 587, "encryption": "TLS"},
-    # 搜狐邮箱
-    "sohu.com": {"server": "smtp.sohu.com", "port": 587, "encryption": "TLS"},
+    # 网易邮箱（使用 SSL，更稳定）
+    "163.com": {"server": "smtp.163.com", "port": 465, "encryption": "SSL"},
+    "126.com": {"server": "smtp.126.com", "port": 465, "encryption": "SSL"},
+    # 新浪邮箱（使用 SSL）
+    "sina.com": {"server": "smtp.sina.com", "port": 465, "encryption": "SSL"},
+    # 搜狐邮箱（使用 SSL）
+    "sohu.com": {"server": "smtp.sohu.com", "port": 465, "encryption": "SSL"},
 }
 
 
@@ -69,12 +69,19 @@ def load_config():
         "VERSION_CHECK_URL": config_data["app"]["version_check_url"],
         "SHOW_VERSION_UPDATE": config_data["app"]["show_version_update"],
         "REQUEST_INTERVAL": config_data["crawler"]["request_interval"],
-        "REPORT_MODE": config_data["report"]["mode"],
+        "REPORT_MODE": os.environ.get("REPORT_MODE", "").strip()
+        or config_data["report"]["mode"],
         "RANK_THRESHOLD": config_data["report"]["rank_threshold"],
         "USE_PROXY": config_data["crawler"]["use_proxy"],
         "DEFAULT_PROXY": config_data["crawler"]["default_proxy"],
-        "ENABLE_CRAWLER": config_data["crawler"]["enable_crawler"],
-        "ENABLE_NOTIFICATION": config_data["notification"]["enable_notification"],
+        "ENABLE_CRAWLER": os.environ.get("ENABLE_CRAWLER", "").strip().lower()
+        in ("true", "1")
+        if os.environ.get("ENABLE_CRAWLER", "").strip()
+        else config_data["crawler"]["enable_crawler"],
+        "ENABLE_NOTIFICATION": os.environ.get("ENABLE_NOTIFICATION", "").strip().lower()
+        in ("true", "1")
+        if os.environ.get("ENABLE_NOTIFICATION", "").strip()
+        else config_data["notification"]["enable_notification"],
         "MESSAGE_BATCH_SIZE": config_data["notification"]["message_batch_size"],
         "DINGTALK_BATCH_SIZE": config_data["notification"].get(
             "dingtalk_batch_size", 20000
@@ -85,23 +92,32 @@ def load_config():
             "feishu_message_separator"
         ],
         "PUSH_WINDOW": {
-            "ENABLED": config_data["notification"]
+            "ENABLED": os.environ.get("PUSH_WINDOW_ENABLED", "").strip().lower()
+            in ("true", "1")
+            if os.environ.get("PUSH_WINDOW_ENABLED", "").strip()
+            else config_data["notification"]
             .get("push_window", {})
             .get("enabled", False),
             "TIME_RANGE": {
-                "START": config_data["notification"]
+                "START": os.environ.get("PUSH_WINDOW_START", "").strip()
+                or config_data["notification"]
                 .get("push_window", {})
                 .get("time_range", {})
                 .get("start", "08:00"),
-                "END": config_data["notification"]
+                "END": os.environ.get("PUSH_WINDOW_END", "").strip()
+                or config_data["notification"]
                 .get("push_window", {})
                 .get("time_range", {})
                 .get("end", "22:00"),
             },
-            "ONCE_PER_DAY": config_data["notification"]
+            "ONCE_PER_DAY": os.environ.get("PUSH_WINDOW_ONCE_PER_DAY", "").strip().lower()
+            in ("true", "1")
+            if os.environ.get("PUSH_WINDOW_ONCE_PER_DAY", "").strip()
+            else config_data["notification"]
             .get("push_window", {})
             .get("once_per_day", True),
-            "RECORD_RETENTION_DAYS": config_data["notification"]
+            "RECORD_RETENTION_DAYS": int(os.environ.get("PUSH_WINDOW_RETENTION_DAYS", "0"))
+            or config_data["notification"]
             .get("push_window", {})
             .get("push_record_retention_days", 7),
         },
@@ -196,7 +212,7 @@ def load_config():
 
 print("正在加载配置...")
 CONFIG = load_config()
-print(f"TrendRadar v{VERSION} 配置加载完成")
+print(f"MetaRadar v{VERSION} 配置加载完成")
 print(f"监控平台数量: {len(CONFIG['PLATFORMS'])}")
 
 
@@ -2295,8 +2311,8 @@ def render_html_content(
             
             <div class="footer">
                 <div class="footer-content">
-                    由 <span class="project-name">TrendRadar</span> 生成 · 
-                    <a href="https://github.com/sansan0/TrendRadar" target="_blank" class="footer-link">
+                    由 <span class="project-name">MetaRadar</span> 生成 · 
+                    <a href="https://github.com/sansan0/MetaRadar" target="_blank" class="footer-link">
                         GitHub 开源项目
                     </a>"""
 
@@ -2357,7 +2373,7 @@ def render_html_content(
                     
                     const link = document.createElement('a');
                     const now = new Date();
-                    const filename = `TrendRadar_热点新闻分析_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}.png`;
+                    const filename = `MetaRadar_热点新闻分析_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}.png`;
                     
                     link.download = filename;
                     link.href = canvas.toDataURL('image/png', 1.0);
@@ -2583,7 +2599,7 @@ def render_html_content(
                     
                     // 下载所有图片
                     const now = new Date();
-                    const baseFilename = `TrendRadar_热点新闻分析_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+                    const baseFilename = `MetaRadar_热点新闻分析_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
                     
                     for (let i = 0; i < images.length; i++) {
                         const link = document.createElement('a');
@@ -2708,7 +2724,7 @@ def render_feishu_content(
     )
 
     if update_info:
-        text_content += f"\n<font color='grey'>TrendRadar 发现新版本 {update_info['remote_version']}，当前 {update_info['current_version']}</font>"
+        text_content += f"\n<font color='grey'>MetaRadar 发现新版本 {update_info['remote_version']}，当前 {update_info['current_version']}</font>"
 
     return text_content
 
@@ -2801,7 +2817,7 @@ def render_dingtalk_content(
     text_content += f"\n\n> 更新时间：{now.strftime('%Y-%m-%d %H:%M:%S')}"
 
     if update_info:
-        text_content += f"\n> TrendRadar 发现新版本 **{update_info['remote_version']}**，当前 **{update_info['current_version']}**"
+        text_content += f"\n> MetaRadar 发现新版本 **{update_info['remote_version']}**，当前 **{update_info['current_version']}**"
 
     return text_content
 
@@ -2850,23 +2866,23 @@ def split_content_into_batches(
     if format_type == "wework":
         base_footer = f"\n\n\n> 更新时间：{now.strftime('%Y-%m-%d %H:%M:%S')}"
         if update_info:
-            base_footer += f"\n> TrendRadar 发现新版本 **{update_info['remote_version']}**，当前 **{update_info['current_version']}**"
+            base_footer += f"\n> MetaRadar 发现新版本 **{update_info['remote_version']}**，当前 **{update_info['current_version']}**"
     elif format_type == "telegram":
         base_footer = f"\n\n更新时间：{now.strftime('%Y-%m-%d %H:%M:%S')}"
         if update_info:
-            base_footer += f"\nTrendRadar 发现新版本 {update_info['remote_version']}，当前 {update_info['current_version']}"
+            base_footer += f"\nMetaRadar 发现新版本 {update_info['remote_version']}，当前 {update_info['current_version']}"
     elif format_type == "ntfy":
         base_footer = f"\n\n> 更新时间：{now.strftime('%Y-%m-%d %H:%M:%S')}"
         if update_info:
-            base_footer += f"\n> TrendRadar 发现新版本 **{update_info['remote_version']}**，当前 **{update_info['current_version']}**"
+            base_footer += f"\n> MetaRadar 发现新版本 **{update_info['remote_version']}**，当前 **{update_info['current_version']}**"
     elif format_type == "feishu":
         base_footer = f"\n\n<font color='grey'>更新时间：{now.strftime('%Y-%m-%d %H:%M:%S')}</font>"
         if update_info:
-            base_footer += f"\n<font color='grey'>TrendRadar 发现新版本 {update_info['remote_version']}，当前 {update_info['current_version']}</font>"
+            base_footer += f"\n<font color='grey'>MetaRadar 发现新版本 {update_info['remote_version']}，当前 {update_info['current_version']}</font>"
     elif format_type == "dingtalk":
         base_footer = f"\n\n> 更新时间：{now.strftime('%Y-%m-%d %H:%M:%S')}"
         if update_info:
-            base_footer += f"\n> TrendRadar 发现新版本 **{update_info['remote_version']}**，当前 **{update_info['current_version']}**"
+            base_footer += f"\n> MetaRadar 发现新版本 **{update_info['remote_version']}**，当前 **{update_info['current_version']}**"
 
     stats_header = ""
     if report_data["stats"]:
@@ -3531,7 +3547,7 @@ def send_to_dingtalk(
         payload = {
             "msgtype": "markdown",
             "markdown": {
-                "title": f"TrendRadar 热点分析报告 - {report_type}",
+                "title": f"MetaRadar 热点分析报告 - {report_type}",
                 "text": batch_content,
             },
         }
@@ -3724,7 +3740,14 @@ def send_to_email(
             # 使用自定义 SMTP 配置
             smtp_server = custom_smtp_server
             smtp_port = int(custom_smtp_port)
-            use_tls = smtp_port == 587
+            # 根据端口判断加密方式：465=SSL, 587=TLS
+            if smtp_port == 465:
+                use_tls = False  # SSL 模式（SMTP_SSL）
+            elif smtp_port == 587:
+                use_tls = True   # TLS 模式（STARTTLS）
+            else:
+                # 其他端口优先尝试 TLS（更安全，更广泛支持）
+                use_tls = True
         elif domain in SMTP_CONFIGS:
             # 使用预设配置
             config = SMTP_CONFIGS[domain]
@@ -3740,7 +3763,7 @@ def send_to_email(
         msg = MIMEMultipart("alternative")
 
         # 严格按照 RFC 标准设置 From header
-        sender_name = "TrendRadar"
+        sender_name = "MetaRadar"
         msg["From"] = formataddr((sender_name, from_email))
 
         # 设置收件人
@@ -3752,7 +3775,7 @@ def send_to_email(
 
         # 设置邮件主题
         now = get_beijing_time()
-        subject = f"TrendRadar 热点分析报告 - {report_type} - {now.strftime('%m月%d日 %H:%M')}"
+        subject = f"MetaRadar 热点分析报告 - {report_type} - {now.strftime('%m月%d日 %H:%M')}"
         msg["Subject"] = Header(subject, "utf-8")
 
         # 设置其他标准 header
@@ -3762,7 +3785,7 @@ def send_to_email(
 
         # 添加纯文本部分（作为备选）
         text_content = f"""
-TrendRadar 热点分析报告
+MetaRadar 热点分析报告
 ========================
 报告类型：{report_type}
 生成时间：{now.strftime('%Y-%m-%d %H:%M:%S')}
